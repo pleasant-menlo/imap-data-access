@@ -5,6 +5,8 @@ from __future__ import annotations
 import json
 import os
 import re
+import ssl
+import certifi
 import unittest
 from io import BytesIO
 from pathlib import Path
@@ -108,7 +110,9 @@ def test_request_errors(mock_urlopen: unittest.mock.MagicMock):
     ],
 )
 def test_download(
-    mock_urlopen: unittest.mock.MagicMock, file_path: str | Path, destination: str
+    mock_urlopen: unittest.mock.MagicMock,
+    mock_create_default_context: unittest.mock.MagicMock,
+    file_path: str | Path, destination: str
 ):
     """Test that the download API works as expected.
 
@@ -134,6 +138,8 @@ def test_download(
     with open(result, "rb") as f:
         assert f.read() == b"Mock file content"
 
+    # Should have only been one call to create_default_context
+    mock_create_default_context.assert_called_once_with(cafile=certifi.where())
     # Should have only been one call to urlopen
     mock_urlopen.assert_called_once()
 
@@ -147,6 +153,9 @@ def test_download(
     expected_url_encoded = f"https://api.test.com/download/{destination}"
     assert called_url == expected_url_encoded
     assert request_sent.method == "GET"
+
+    context_arg = urlopen_calls[0].kwargs.get('context')
+    assert context_arg == mock_create_default_context.return_value
 
 
 def test_download_already_exists(mock_urlopen: unittest.mock.MagicMock):
@@ -186,7 +195,9 @@ def test_download_already_exists(mock_urlopen: unittest.mock.MagicMock):
         {"instrument": "swe", "data_level": "l0"},
     ],
 )
-def test_query(mock_urlopen: unittest.mock.MagicMock, query_params: list[dict]):
+def test_query(mock_urlopen: unittest.mock.MagicMock,
+               mock_create_default_context: unittest.mock.MagicMock,
+               query_params: list[dict]):
     """Test a basic call to the Query API.
 
     Parameters
@@ -201,6 +212,8 @@ def test_query(mock_urlopen: unittest.mock.MagicMock, query_params: list[dict]):
     # No data found, and JSON decoding works as expected
     assert response == list()
 
+    # Should have only been one call to create_default_context
+    mock_create_default_context.assert_called_once_with(cafile=certifi.where())
     # Should have only been one call to urlopen
     mock_urlopen.assert_called_once()
     # Assert that the correct URL was used for the query
@@ -208,6 +221,9 @@ def test_query(mock_urlopen: unittest.mock.MagicMock, query_params: list[dict]):
     called_url = urlopen_call.full_url
     expected_url_encoded = f"https://api.test.com/query?{urlencode(query_params)}"
     assert called_url == expected_url_encoded
+
+    context_arg = mock_urlopen.mock_calls[0].kwargs.get('context')
+    assert context_arg == mock_create_default_context.return_value
 
 
 def test_query_no_params(mock_urlopen: unittest.mock.MagicMock):
@@ -316,6 +332,7 @@ def test_upload_no_file(mock_urlopen: unittest.mock.MagicMock):
 )
 def test_upload(
     mock_urlopen: unittest.mock.MagicMock,
+    mock_create_default_context: unittest.mock.MagicMock,
     upload_file_path: str | Path,
     api_key: str | None,
     expected_header: dict,
@@ -351,6 +368,11 @@ def test_upload(
     # 2. To upload the file to the url returned in 1.
     assert mock_urlopen.call_count == 2
 
+    mock_create_default_context.assert_has_calls([
+        unittest.mock.call(cafile=certifi.where()),
+        unittest.mock.call(cafile=certifi.where()),
+    ])
+
     # We get all returned calls, but we only need the calls
     # where we sent requests
     mock_calls = [
@@ -365,6 +387,10 @@ def test_upload(
     called_url = request_sent.full_url
     expected_url_encoded = "https://api.test.com/upload/test-file.txt"
     assert called_url == expected_url_encoded
+
+    context_arg = urlopen_call.kwargs.get('context')
+    assert context_arg == mock_create_default_context.return_value
+
     assert request_sent.method == "GET"
     # An API key needs to be added to the header for uploads
     assert request_sent.headers == expected_header
@@ -375,6 +401,10 @@ def test_upload(
     called_url = request_sent.full_url
     expected_url_encoded = "https://s3-test-bucket.com"
     assert called_url == expected_url_encoded
+
+    context_arg = urlopen_call.kwargs.get('context')
+    assert context_arg == mock_create_default_context.return_value
+
     assert request_sent.method == "PUT"
 
     # Assert that the original data from the test file was sent

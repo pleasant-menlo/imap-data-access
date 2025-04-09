@@ -26,6 +26,9 @@ classifiers = [
     "Operating System :: Unix",
     "Operating System :: MacOS",
 ]
+dependencies = [
+    "certifi"
+]
 
 [project.scripts]
 imap-data-access = "imap_data_access.cli:main"

@@ -3,6 +3,8 @@
 import contextlib
 import json
 import logging
+import ssl
+import certifi
 import urllib.request
 from pathlib import Path
 from typing import Optional, Union
@@ -32,9 +34,9 @@ def _get_url_response(request: urllib.request.Request):
     """
     try:
         # Open the URL and yield the response
-        with urllib.request.urlopen(request) as response:
+        context = ssl.create_default_context(cafile=certifi.where())
+        with urllib.request.urlopen(request, context=context) as response:
             yield response
-
     except HTTPError as e:
         if e.status == 307:
             # If the server is redirecting us, we need to follow the redirect

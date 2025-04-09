@@ -33,3 +33,15 @@ def mock_urlopen():
         mock_response = mock_urlopen.return_value.__enter__.return_value
         mock_response.read.return_value = mock_data
         yield mock_urlopen
+
+@pytest.fixture
+def mock_create_default_context():
+    """Mock create_default_context
+
+    Yields
+    ------
+    create_default_context : unittest.mock.MagicMock
+        Mock object for ``create_default_context``
+    """
+    with patch("ssl.create_default_context") as mock_create_default_context:
+        yield mock_create_default_context
